@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deathpool 2025</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: #e0e0e0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            border: 2px solid #8b0000;
+        }
+
+        h1 {
+            font-size: 3em;
+            color: #ff4444;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            margin-bottom: 10px;
+        }
+
+        .season-info {
+            font-size: 1.2em;
+            color: #aaa;
+            margin-top: 10px;
+        }
+
+        .countdown {
+            font-size: 1.5em;
+            color: #ff6b6b;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+
+        .top-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .leaderboard, .first-blood {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 25px;
+            border-radius: 10px;
+            border: 1px solid #444;
+        }
+
+        .section-title {
+            font-size: 1.8em;
+            color: #ff6b6b;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #8b0000;
+            padding-bottom: 10px;
+        }
+
+        .leaderboard-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin: 10px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border-left: 4px solid #666;
+            transition: all 0.3s;
+        }
+
+        .leaderboard-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateX(5px);
+        }
+
+        .leaderboard-item.winner {
+            border-left-color: #ffd700;
+            background: rgba(255, 215, 0, 0.1);
+        }
+
+        .leaderboard-item.second {
+            border-left-color: #c0c0c0;
+        }
+
+        .leaderboard-item.third {
+            border-left-color: #cd7f32;
+        }
+
+        .rank {
+            font-size: 1.5em;
+            font-weight: bold;
+            width: 40px;
+            color: #999;
+        }
+
+        .participant-name {
+            font-size: 1.3em;
+            font-weight: bold;
+            flex-grow: 1;
+        }
+
+        .points {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #ff6b6b;
+            margin-right: 10px;
+        }
+
+        .death-count {
+            font-size: 0.9em;
+            color: #aaa;
+        }
+
+        .first-blood-winner {
+            padding: 20px;
+            background: rgba(139, 0, 0, 0.2);
+            border-radius: 8px;
+            border: 2px solid #8b0000;
+            text-align: center;
+        }
+
+        .first-blood-winner h3 {
+            color: #ff4444;
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+
+        .first-blood-winner .details {
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+
+        .no-first-blood {
+            text-align: center;
+            color: #666;
+            font-size: 1.2em;
+            padding: 20px;
+        }
+
+        .picks-section {
+            margin-top: 40px;
+        }
+
+        .participant-picks {
+            margin-bottom: 30px;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 25px;
+            border-radius: 10px;
+            border: 1px solid #444;
+        }
+
+        .participant-header {
+            font-size: 1.6em;
+            color: #ff6b6b;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .picks-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .pick-row {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px 15px;
+            border-radius: 6px;
+            border-left: 3px solid #555;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 80px 120px;
+            gap: 15px;
+            align-items: start;
+            transition: all 0.3s;
+        }
+
+        .pick-row:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .pick-row.deceased {
+            border-left-color: #8b0000;
+            background: rgba(139, 0, 0, 0.15);
+        }
+
+        .pick-name-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .celebrity-name {
+            font-size: 1.05em;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .claim-to-fame {
+            font-size: 0.85em;
+            color: #999;
+        }
+
+        .current-age {
+            font-size: 0.85em;
+            color: #999;
+        }
+
+        .badges {
+            display: flex;
+            gap: 6px;
+            margin-top: 4px;
+            flex-wrap: wrap;
+        }
+
+        .rip-badge {
+            display: inline-block;
+            background: #8b0000;
+            color: #fff;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            font-weight: bold;
+        }
+
+        .first-blood-badge {
+            display: inline-block;
+            background: #ffd700;
+            color: #000;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            font-weight: bold;
+        }
+
+        .toc-section {
+            background: rgba(0, 0, 0, 0.4);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #444;
+            margin-bottom: 30px;
+        }
+
+        .toc-title {
+            font-size: 1.3em;
+            color: #ff6b6b;
+            margin-bottom: 15px;
+        }
+
+        .toc-links {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+        }
+
+        .toc-link {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px 20px;
+            border-radius: 6px;
+            border-left: 3px solid #666;
+            text-decoration: none;
+            color: #fff;
+            transition: all 0.3s;
+            display: block;
+            text-align: center;
+        }
+
+        .toc-link:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-left-color: #ff6b6b;
+            transform: translateX(5px);
+        }
+
+        .toc-link .participant-name {
+            font-size: 1.1em;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .toc-link .participant-stats {
+            font-size: 0.85em;
+            color: #999;
+        }
+
+        .date-cell {
+            font-size: 0.9em;
+            color: #ccc;
+        }
+
+        .date-invalid {
+            color: #ff4444;
+            font-weight: bold;
+        }
+
+        .date-invalid::before,
+        .date-invalid::after {
+            content: '⚠ ';
+            color: #ff4444;
+        }
+
+        .date-editable {
+            cursor: pointer;
+            padding: 2px 5px;
+            border-radius: 3px;
+            transition: background 0.2s;
+        }
+
+        .date-editable:hover {
+            background: rgba(255, 255, 255, 0.1);
+            text-decoration: underline dotted;
+        }
+
+        .date-missing {
+            color: #666;
+            font-style: italic;
+            cursor: pointer;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+
+        .date-missing:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #999;
+        }
+
+        .date-edit-form {
+            display: none;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .date-edit-form.active {
+            display: flex;
+        }
+
+        .date-edit-form input[type="date"] {
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid #555;
+            background: #2a2a2a;
+            color: #fff;
+            font-size: 0.85em;
+        }
+
+        .points-cell {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #ff6b6b;
+            text-align: center;
+        }
+
+        .actions-cell {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-lookup {
+            background: transparent;
+            border: 1px solid #4a90e2;
+            color: #4a90e2;
+            font-size: 1em;
+            padding: 4px 8px;
+        }
+
+        .btn-lookup:hover {
+            background: #4a90e2;
+            color: white;
+        }
+
+        .btn-mark-death {
+            background: transparent;
+            border: none;
+            font-size: 1.2em;
+            cursor: pointer;
+            padding: 5px;
+            transition: transform 0.2s;
+        }
+
+        .btn-mark-death:hover {
+            transform: scale(1.3);
+        }
+
+        .wiki-link {
+            color: #4a90e2;
+            text-decoration: none;
+            margin-left: 5px;
+            font-size: 0.9em;
+        }
+
+        .wiki-link:hover {
+            color: #357abd;
+        }
+
+        .btn-unmark {
+            background: transparent;
+            border: 1px solid #666;
+            color: #999;
+            font-size: 1em;
+            padding: 4px 8px;
+        }
+
+        .btn-unmark:hover {
+            background: #666;
+            color: white;
+        }
+
+        .death-form {
+            margin-top: 10px;
+            display: none;
+        }
+
+        .death-form.active {
+            display: block;
+        }
+
+        .death-form input[type="date"] {
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background: #2a2a2a;
+            color: #fff;
+            margin-right: 10px;
+        }
+
+        .btn-submit {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-submit:hover {
+            background: #218838;
+        }
+
+        .btn-cancel {
+            background: #666;
+            color: white;
+        }
+
+        .btn-cancel:hover {
+            background: #555;
+        }
+
+        .first-blood-badge {
+            display: inline-block;
+            background: #ffd700;
+            color: #000;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        @media (max-width: 1024px) {
+            .pick-row {
+                grid-template-columns: 2fr 1fr 1fr 60px 100px;
+                gap: 10px;
+                font-size: 0.9em;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .top-section {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+
+            .pick-row {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .date-cell, .points-cell {
+                display: none;
+            }
+
+            .pick-name-cell {
+                grid-column: 1;
+            }
+
+            .actions-cell {
+                justify-content: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>💀 DEATHPOOL 2025 💀</h1>
+            <div class="season-info">Season ends: {{ season_end }}</div>
+            <div class="countdown">
+                ⏰ {{ days_remaining }} days, {{ hours_remaining }} hours remaining
+            </div>
+        </header>
+
+        <div class="top-section">
+            <div class="leaderboard">
+                <div class="section-title">🏆 Leaderboard</div>
+                {% for item in leaderboard %}
+                <div class="leaderboard-item {% if loop.index == 1 %}winner{% elif loop.index == 2 %}second{% elif loop.index == 3 %}third{% endif %}">
+                    <span class="rank">#{{ loop.index }}</span>
+                    <span class="participant-name">{{ item.name }}</span>
+                    <span class="death-count">({{ item.deaths_count }} deaths)</span>
+                    <span class="points">{{ item.total_points }} pts</span>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="first-blood">
+                <div class="section-title">🩸 First Blood</div>
+                {% if first_blood_picks %}
+                    {% if first_blood_picks|length > 1 %}
+                    <div class="first-blood-winner">
+                        <h3>🎯 TIE: {{ first_blood_picks|map(attribute='name')|unique|join(' & ') }}</h3>
+                        {% for pick in first_blood_picks %}
+                        <div class="details" style="{% if not loop.first %}margin-top: 10px; padding-top: 10px; border-top: 1px solid #555;{% endif %}">
+                            <strong>{{ pick.name }}: {{ pick.celebrity_name }}</strong><br>
+                            Died: {{ pick.death_date.strftime('%B %d, %Y') }}<br>
+                            Age: {{ pick.death_age }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="first-blood-winner">
+                        <h3>🎯 {{ first_blood_picks[0].name }}</h3>
+                        <div class="details">
+                            <strong>{{ first_blood_picks[0].celebrity_name }}</strong><br>
+                            Died: {{ first_blood_picks[0].death_date.strftime('%B %d, %Y') }}<br>
+                            Age: {{ first_blood_picks[0].death_age }}
+                        </div>
+                    </div>
+                    {% endif %}
+                {% else %}
+                <div class="no-first-blood">
+                    No blood has been drawn... yet.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="picks-section">
+            <div class="section-title">All Picks</div>
+
+            <!-- Table of Contents -->
+            <div class="toc-section">
+                <div class="toc-title">Jump to Participant</div>
+                <div class="toc-links">
+                    {% for participant, picks in picks_by_participant.items() %}
+                    {% set dead_count = picks|selectattr('death_date')|list|length %}
+                    {% set total_points = picks|sum(attribute='points') %}
+                    <a href="#participant-{{ participant|lower }}" class="toc-link">
+                        <span class="participant-name">{{ participant }}</span>
+                        <span class="participant-stats">
+                            {{ picks|length }} picks • {{ dead_count }} deaths • {{ total_points }} pts
+                        </span>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {% for participant, picks in picks_by_participant.items() %}
+            <div class="participant-picks" id="participant-{{ participant|lower }}">
+                <div class="participant-header">
+                    <span>{{ participant }}'s Picks ({{ picks|length }})</span>
+                </div>
+                <div class="picks-list">
+                    {% for pick in picks %}
+                    <div class="pick-row {% if pick.death_date %}deceased{% endif %}">
+                        <!-- Name and Description Column -->
+                        <div class="pick-name-cell">
+                            <div class="celebrity-name">{{ pick.celebrity_name }}</div>
+                            {% if pick.description %}
+                            <div class="claim-to-fame">{{ pick.description }}</div>
+                            {% endif %}
+                            {% if pick.age and not pick.death_date %}
+                            <div class="current-age">Age: {{ pick.age }}</div>
+                            {% endif %}
+                            <div class="badges">
+                                {% if pick.death_date %}
+                                <span class="rip-badge">RIP: Age {{ pick.death_age }}</span>
+                                {% endif %}
+                                {% if pick.is_first_blood %}
+                                <span class="first-blood-badge">FIRST BLOOD</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Birth Date Column -->
+                        <div class="date-cell">
+                            {% if pick.birth_date %}
+                            <span class="date-editable" onclick="editDate({{ pick.id }}, 'birth')" id="birth-display-{{ pick.id }}">
+                                {{ pick.birth_date.strftime('%b %-d, %Y') }}
+                            </span>
+                            {% if pick.wikipedia_url %}
+                            <a href="{{ pick.wikipedia_url }}" target="_blank" class="wiki-link" title="View on Wikipedia">↗</a>
+                            {% endif %}
+                            <div class="date-edit-form" id="birth-edit-{{ pick.id }}">
+                                <input type="date" id="birth-input-{{ pick.id }}" value="{{ pick.birth_date.strftime('%Y-%m-%d') }}">
+                                <button class="btn btn-submit" onclick="saveDate({{ pick.id }}, 'birth')">✓</button>
+                                <button class="btn btn-cancel" onclick="cancelEdit({{ pick.id }}, 'birth')">✗</button>
+                            </div>
+                            {% else %}
+                            <span class="date-missing" onclick="editDate({{ pick.id }}, 'birth')" id="birth-display-{{ pick.id }}">
+                                no birthdate
+                            </span>
+                            <div class="date-edit-form" id="birth-edit-{{ pick.id }}">
+                                <input type="date" id="birth-input-{{ pick.id }}" value="">
+                                <button class="btn btn-submit" onclick="saveDate({{ pick.id }}, 'birth')">✓</button>
+                                <button class="btn btn-cancel" onclick="cancelEdit({{ pick.id }}, 'birth')">✗</button>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Death Date Column -->
+                        <div class="date-cell">
+                            {% if pick.death_date %}
+                            {% set is_invalid = pick.death_date < season_start %}
+                            <span class="date-editable {% if is_invalid %}date-invalid{% endif %}"
+                                  onclick="editDate({{ pick.id }}, 'death')"
+                                  id="death-display-{{ pick.id }}"
+                                  {% if is_invalid %}title="Death date is before season start (Jan 1, 2025) - likely incorrect"{% endif %}>
+                                {{ pick.death_date.strftime('%b %-d, %Y') }}
+                            </span>
+                            <div class="date-edit-form" id="death-edit-{{ pick.id }}">
+                                <input type="date" id="death-input-{{ pick.id }}" value="{{ pick.death_date.strftime('%Y-%m-%d') }}">
+                                <button class="btn btn-submit" onclick="saveDate({{ pick.id }}, 'death')">✓</button>
+                                <button class="btn btn-cancel" onclick="cancelEdit({{ pick.id }}, 'death')">✗</button>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Points Column -->
+                        <div class="points-cell">
+                            {% if pick.death_date %}
+                            {{ pick.points }}
+                            {% endif %}
+                        </div>
+
+                        <!-- Actions Column -->
+                        <div class="actions-cell">
+                            {% if not pick.age %}
+                            <button class="btn btn-lookup" onclick="lookupAge({{ pick.id }}, this)">
+                                🔍
+                            </button>
+                            {% endif %}
+
+                            {% if not pick.death_date %}
+                            <button class="btn btn-mark-death" onclick="toggleDeathForm({{ pick.id }})" title="Mark death">
+                                ☠️
+                            </button>
+                            <div id="death-form-{{ pick.id }}" class="death-form">
+                                <form action="/mark_death/{{ pick.id }}" method="POST">
+                                    <input type="date" name="death_date" required>
+                                    <button type="submit" class="btn btn-submit">✓</button>
+                                    <button type="button" class="btn btn-cancel" onclick="toggleDeathForm({{ pick.id }})">✗</button>
+                                </form>
+                            </div>
+                            {% else %}
+                            <form action="/unmark_death/{{ pick.id }}" method="POST" style="display: inline;">
+                                <button type="submit" class="btn btn-unmark">↶</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+        function toggleDeathForm(pickId) {
+            const form = document.getElementById(`death-form-${pickId}`);
+            form.classList.toggle('active');
+        }
+
+        function editDate(pickId, type) {
+            document.getElementById(`${type}-display-${pickId}`).style.display = 'none';
+            document.getElementById(`${type}-edit-${pickId}`).classList.add('active');
+        }
+
+        function cancelEdit(pickId, type) {
+            document.getElementById(`${type}-display-${pickId}`).style.display = 'inline';
+            document.getElementById(`${type}-edit-${pickId}`).classList.remove('active');
+        }
+
+        async function saveDate(pickId, type) {
+            const dateInput = document.getElementById(`${type}-input-${pickId}`);
+            const newDate = dateInput.value;
+
+            if (!newDate) {
+                alert('Please enter a valid date');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/update_date/${pickId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        date_type: type,
+                        new_date: newDate
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.error || 'Failed to update date');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error updating date');
+            }
+        }
+
+        async function lookupAge(pickId, button) {
+            button.disabled = true;
+            const originalText = button.textContent;
+            button.textContent = '⏳ Looking...';
+
+            try {
+                const response = await fetch(`/lookup_age/${pickId}`);
+                const data = await response.json();
+
+                if (data.success) {
+                    button.textContent = '✓ Found!';
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    button.textContent = '✗ Not found';
+                    setTimeout(() => {
+                        button.disabled = false;
+                        button.textContent = originalText;
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                button.textContent = '✗ Error';
+                setTimeout(() => {
+                    button.disabled = false;
+                    button.textContent = originalText;
+                }, 2000);
+            }
+        }
+    </script>
+</body>
+</html>
