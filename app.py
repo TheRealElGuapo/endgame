@@ -165,7 +165,7 @@ def get_wikipedia_age(celebrity_name):
 def index():
     """Main dashboard showing leaderboard and all picks"""
     with get_db_connection() as conn:
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor()
 
         # Get current season
         cursor.execute("SELECT * FROM season_config WHERE season_year = 2025")
@@ -257,7 +257,7 @@ def index():
 def lookup_age(pick_id):
     """Look up age for a specific pick"""
     with get_db_connection() as conn:
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor()
 
         cursor.execute("SELECT celebrity_name, participant_id FROM picks WHERE id = %s", (pick_id,))
         pick = cursor.fetchone()
@@ -322,7 +322,7 @@ def mark_death(pick_id):
     death_date = request.form.get('death_date')
 
     with get_db_connection() as conn:
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor()
 
         # Get pick details
         cursor.execute("SELECT * FROM picks WHERE id = %s", (pick_id,))
@@ -388,7 +388,7 @@ def mark_death(pick_id):
 def unmark_death(pick_id):
     """Remove death marking from a pick"""
     with get_db_connection() as conn:
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor()
 
         # Check if this was first blood
         cursor.execute("SELECT is_first_blood FROM picks WHERE id = %s", (pick_id,))
@@ -455,7 +455,7 @@ def update_date(pick_id):
         return jsonify({'success': False, 'error': 'No date provided'}), 400
 
     with get_db_connection() as conn:
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor()
 
         if date_type == 'birth':
             # Update birth date and recalculate age
