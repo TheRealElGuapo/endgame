@@ -240,9 +240,8 @@ def index():
                 picks_by_participant[participant] = []
             picks_by_participant[participant].append(pick)
 
-        # Define season start for validation (use date, not datetime)
-        from datetime import date
-        season_start = date(2025, 1, 1)
+        # Define season start for validation - as string for SQLite date comparison
+        season_start = '2025-01-01'
 
         return render_template('index.html',
                              leaderboard=leaderboard,
