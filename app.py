@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
-import mysql.connector
+import sqlite3
 from datetime import datetime
 import requests
 import re
@@ -9,17 +9,20 @@ import os
 app = Flask(__name__)
 
 # Database configuration
-DB_CONFIG = {
-    'host': os.environ.get('DB_HOST', 'localhost'),
-    'user': os.environ.get('DB_USER', 'root'),
-    'password': os.environ.get('DB_PASSWORD', '14231423'),
-    'database': os.environ.get('DB_NAME', 'deathpool')
-}
+DB_PATH = os.environ.get('DB_PATH', 'deathpool.db')
+
+def dict_factory(cursor, row):
+    """Convert database rows to dictionaries"""
+    d = {}
+    for idx, col in enumerate(cursor.description):
+        d[col[0]] = row[idx]
+    return d
 
 @contextmanager
 def get_db_connection():
     """Context manager for database connections"""
-    conn = mysql.connector.connect(**DB_CONFIG)
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = dict_factory
     try:
         yield conn
     finally:
