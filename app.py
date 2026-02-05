@@ -172,7 +172,7 @@ def index():
         season = cursor.fetchone()
 
         # Calculate time remaining
-        end_date = season['end_date']
+        end_date = datetime.strptime(season['end_date'], '%Y-%m-%d %H:%M:%S')
         time_remaining = end_date - datetime.now()
         days_remaining = max(0, time_remaining.days)
         hours_remaining = max(0, time_remaining.seconds // 3600) if days_remaining >= 0 else 0
