@@ -553,7 +553,7 @@
                         {% for pick in first_blood_picks %}
                         <div class="details" style="{% if not loop.first %}margin-top: 10px; padding-top: 10px; border-top: 1px solid #555;{% endif %}">
                             <strong>{{ pick.name }}: {{ pick.celebrity_name }}</strong><br>
-                            Died: {{ pick.death_date.strftime('%B %d, %Y') }}<br>
+                            Died: {{ pick.death_date }}<br>
                             Age: {{ pick.death_age }}
                         </div>
                         {% endfor %}
@@ -563,7 +563,7 @@
                         <h3>🎯 {{ first_blood_picks[0].name }}</h3>
                         <div class="details">
                             <strong>{{ first_blood_picks[0].celebrity_name }}</strong><br>
-                            Died: {{ first_blood_picks[0].death_date.strftime('%B %d, %Y') }}<br>
+                            Died: {{ first_blood_picks[0].death_date }}<br>
                             Age: {{ first_blood_picks[0].death_age }}
                         </div>
                     </div>
@@ -627,13 +627,13 @@
                         <div class="date-cell">
                             {% if pick.birth_date %}
                             <span class="date-editable" onclick="editDate({{ pick.id }}, 'birth')" id="birth-display-{{ pick.id }}">
-                                {{ pick.birth_date.strftime('%b %-d, %Y') }}
+                                {{ pick.birth_date }}
                             </span>
                             {% if pick.wikipedia_url %}
                             <a href="{{ pick.wikipedia_url }}" target="_blank" class="wiki-link" title="View on Wikipedia">↗</a>
                             {% endif %}
                             <div class="date-edit-form" id="birth-edit-{{ pick.id }}">
-                                <input type="date" id="birth-input-{{ pick.id }}" value="{{ pick.birth_date.strftime('%Y-%m-%d') }}">
+                                <input type="date" id="birth-input-{{ pick.id }}" value="{{ pick.birth_date }}">
                                 <button class="btn btn-submit" onclick="saveDate({{ pick.id }}, 'birth')">✓</button>
                                 <button class="btn btn-cancel" onclick="cancelEdit({{ pick.id }}, 'birth')">✗</button>
                             </div>
@@ -657,10 +657,10 @@
                                   onclick="editDate({{ pick.id }}, 'death')"
                                   id="death-display-{{ pick.id }}"
                                   {% if is_invalid %}title="Death date is before season start (Jan 1, 2025) - likely incorrect"{% endif %}>
-                                {{ pick.death_date.strftime('%b %-d, %Y') }}
+                                {{ pick.death_date }}
                             </span>
                             <div class="date-edit-form" id="death-edit-{{ pick.id }}">
-                                <input type="date" id="death-input-{{ pick.id }}" value="{{ pick.death_date.strftime('%Y-%m-%d') }}">
+                                <input type="date" id="death-input-{{ pick.id }}" value="{{ pick.death_date }}">
                                 <button class="btn btn-submit" onclick="saveDate({{ pick.id }}, 'death')">✓</button>
                                 <button class="btn btn-cancel" onclick="cancelEdit({{ pick.id }}, 'death')">✗</button>
                             </div>
