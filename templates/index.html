@@ -592,11 +592,12 @@
             <div class="toc-section">
                 <div class="toc-title">Jump to Participant</div>
                 <div class="toc-links">
-                    {% for participant, picks in picks_by_participant.items() %}
+                    {% for p in participants %}
+                    {% set picks = picks_by_participant.get(p.name, []) %}
                     {% set dead_count = picks|selectattr('death_date')|list|length %}
                     {% set total_points = picks|sum(attribute='points') %}
-                    <a href="#participant-{{ participant|lower }}" class="toc-link">
-                        <span class="participant-name">{{ participant }}</span>
+                    <a href="#participant-{{ p.name|lower }}" class="toc-link">
+                        <span class="participant-name">{{ p.name }}</span>
                         <span class="participant-stats">
                             {{ picks|length }} picks • {{ dead_count }} deaths • {{ total_points }} pts
                         </span>
@@ -605,8 +606,9 @@
                 </div>
             </div>
 
-            {% for participant, picks in picks_by_participant.items() %}
-            {% set participant_obj = participants|selectattr('name', 'equalto', participant)|first %}
+            {% for participant_obj in participants %}
+            {% set picks = picks_by_participant.get(participant_obj.name, []) %}
+            {% set participant = participant_obj.name %}
             <div class="participant-picks" id="participant-{{ participant|lower }}">
                 <div class="participant-header">
                     <span>{{ participant }}'s Picks ({{ picks|length }})</span>
