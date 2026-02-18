@@ -257,6 +257,21 @@ def index():
 
         season_start = f'{season_year}-01-01'
 
+        # Compute fun stats per participant
+        stats_by_participant = {}
+        for p in participants:
+            p_picks = picks_by_participant.get(p['name'], [])
+            picks_with_age = [pk for pk in p_picks if pk.get('age')]
+            avg_age = round(sum(pk['age'] for pk in picks_with_age) / len(picks_with_age), 1) if picks_with_age else None
+            oldest = max(picks_with_age, key=lambda x: x['age']) if picks_with_age else None
+            youngest = min(picks_with_age, key=lambda x: x['age']) if picks_with_age else None
+            stats_by_participant[p['name']] = {
+                'avg_age': avg_age,
+                'oldest': oldest,
+                'youngest': youngest,
+                'picks_with_age_count': len(picks_with_age),
+            }
+
         return render_template('index.html',
                              leaderboard=leaderboard,
                              first_blood_picks=first_blood_picks,
@@ -267,7 +282,8 @@ def index():
                              season_start=season_start,
                              season_year=season_year,
                              available_seasons=available_seasons,
-                             participants=participants)
+                             participants=participants,
+                             stats_by_participant=stats_by_participant)
 
 @app.route('/lookup_age/<int:pick_id>')
 def lookup_age(pick_id):
