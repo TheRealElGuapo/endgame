@@ -51,13 +51,13 @@ def get_wikipedia_age(celebrity_name):
 
         if response.status_code != 200:
             print(f"Error: Got status {response.status_code}")
-            return None, None
+            return None
 
         data = response.json()
         print(f"Search results: {len(data.get('query', {}).get('search', []))} found")
 
         if not data.get('query', {}).get('search'):
-            return None, None
+            return None
 
         # Get the page content and description
         page_title = data['query']['search'][0]['title']
@@ -77,7 +77,7 @@ def get_wikipedia_age(celebrity_name):
 
         if response.status_code != 200:
             print(f"Error: Got status {response.status_code}")
-            return None, None
+            return None
 
         pages = response.json()['query']['pages']
         page = list(pages.values())[0]
@@ -164,11 +164,26 @@ def get_wikipedia_age(celebrity_name):
 @app.route('/')
 def index():
     """Main dashboard showing leaderboard and all picks"""
+    season_year = int(request.args.get('season', datetime.now().year))
+
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
-        # Get current season
-        cursor.execute("SELECT * FROM season_config WHERE season_year = 2025")
+        # Get all available seasons
+        cursor.execute("SELECT season_year FROM season_config ORDER BY season_year DESC")
+        available_seasons = [row['season_year'] for row in cursor.fetchall()]
+
+        # Auto-create season config if it doesn't exist
+        if season_year not in available_seasons:
+            cursor.execute("""
+                INSERT INTO season_config (season_year, end_date)
+                VALUES (?, ?)
+            """, (season_year, f'{season_year}-12-31 23:59:59'))
+            conn.commit()
+            available_seasons.insert(0, season_year)
+
+        # Get current season config
+        cursor.execute("SELECT * FROM season_config WHERE season_year = ?", (season_year,))
         season = cursor.fetchone()
 
         # Calculate time remaining
@@ -185,10 +200,10 @@ def index():
                 COALESCE(SUM(pk.points), 0) as total_points,
                 COUNT(CASE WHEN pk.death_date IS NOT NULL THEN 1 END) as deaths_count
             FROM participants p
-            LEFT JOIN picks pk ON p.id = pk.participant_id AND pk.season_year = 2025
+            LEFT JOIN picks pk ON p.id = pk.participant_id AND pk.season_year = ?
             GROUP BY p.id, p.name
             ORDER BY total_points DESC, deaths_count DESC
-        """)
+        """, (season_year,))
         leaderboard = cursor.fetchall()
 
         # Get first blood info (all picks with the earliest death date - handles ties)
@@ -199,11 +214,11 @@ def index():
             WHERE pk.death_date = (
                 SELECT MIN(death_date)
                 FROM picks
-                WHERE death_date IS NOT NULL AND season_year = 2025
+                WHERE death_date IS NOT NULL AND season_year = ?
             )
-            AND pk.season_year = 2025
+            AND pk.season_year = ?
             ORDER BY p.name
-        """)
+        """, (season_year, season_year))
         first_blood_picks = cursor.fetchall()
 
         # Get all picks with details
@@ -213,17 +228,15 @@ def index():
                 p.name as participant_name
             FROM picks pk
             JOIN participants p ON pk.participant_id = p.id
-            WHERE pk.season_year = 2025
+            WHERE pk.season_year = ?
             ORDER BY p.name, pk.celebrity_name
-        """)
+        """, (season_year,))
         all_picks = cursor.fetchall()
 
         # Determine first blood picks (all with earliest death date) and mark them
         first_blood_pick_ids = set()
         if first_blood_picks:
-            # Get the earliest death date
             earliest_death_date = first_blood_picks[0]['death_date']
-            # Find all pick IDs with this death date
             first_blood_pick_ids = {
                 pick['id'] for pick in all_picks
                 if pick['death_date'] == earliest_death_date
@@ -232,16 +245,17 @@ def index():
         # Group picks by participant and mark first blood
         picks_by_participant = {}
         for pick in all_picks:
-            # Dynamically set is_first_blood based on earliest death
             pick['is_first_blood'] = (pick['id'] in first_blood_pick_ids)
-
             participant = pick['participant_name']
             if participant not in picks_by_participant:
                 picks_by_participant[participant] = []
             picks_by_participant[participant].append(pick)
 
-        # Define season start for validation - as string for SQLite date comparison
-        season_start = '2025-01-01'
+        # Get participant IDs for the import button
+        cursor.execute("SELECT id, name FROM participants ORDER BY name")
+        participants = cursor.fetchall()
+
+        season_start = f'{season_year}-01-01'
 
         return render_template('index.html',
                              leaderboard=leaderboard,
@@ -250,7 +264,10 @@ def index():
                              days_remaining=days_remaining,
                              hours_remaining=hours_remaining,
                              season_end=end_date.strftime('%B %d, %Y at %I:%M:%S %p'),
-                             season_start=season_start)
+                             season_start=season_start,
+                             season_year=season_year,
+                             available_seasons=available_seasons,
+                             participants=participants)
 
 @app.route('/lookup_age/<int:pick_id>')
 def lookup_age(pick_id):
@@ -258,7 +275,7 @@ def lookup_age(pick_id):
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("SELECT celebrity_name, participant_id FROM picks WHERE id = ?", (pick_id,))
+        cursor.execute("SELECT celebrity_name, participant_id, season_year FROM picks WHERE id = ?", (pick_id,))
         pick = cursor.fetchone()
 
         if not pick:
@@ -268,14 +285,13 @@ def lookup_age(pick_id):
 
         if result and result['age'] is not None:
             if result['death_date']:
-                # Celebrity is deceased - calculate points and check for first blood
                 points = max(0, 100 - result['death_age'])
 
                 cursor.execute("""
                     SELECT COUNT(*) as death_count
                     FROM picks
-                    WHERE season_year = 2025 AND death_date IS NOT NULL
-                """)
+                    WHERE season_year = ? AND death_date IS NOT NULL
+                """, (pick['season_year'],))
                 is_first_blood = (cursor.fetchone()['death_count'] == 0)
 
                 cursor.execute("""
@@ -290,10 +306,9 @@ def lookup_age(pick_id):
                     cursor.execute("""
                         UPDATE season_config
                         SET first_blood_winner_id = ?
-                        WHERE season_year = 2025
-                    """, (pick['participant_id'],))
+                        WHERE season_year = ?
+                    """, (pick['participant_id'], pick['season_year']))
             else:
-                # Celebrity is alive
                 cursor.execute("""
                     UPDATE picks
                     SET age = ?, birth_date = ?, wikipedia_url = ?, description = ?
@@ -319,29 +334,16 @@ def lookup_age(pick_id):
 def mark_death(pick_id):
     """Mark a celebrity as deceased and calculate points"""
     death_date = request.form.get('death_date')
+    season_year = int(request.form.get('season_year', datetime.now().year))
 
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
-        # Get pick details
         cursor.execute("SELECT * FROM picks WHERE id = ?", (pick_id,))
         pick = cursor.fetchone()
 
         if not pick:
             return jsonify({'error': 'Pick not found'}), 404
-
-        # If no age is set, try to look it up first
-        if pick['age'] is None:
-            age, birth_date = get_wikipedia_age(pick['celebrity_name'])
-            if age is not None:
-                cursor.execute("""
-                    UPDATE picks
-                    SET age = ?, birth_date = ?
-                    WHERE id = ?
-                """, (age, birth_date, pick_id))
-                conn.commit()
-                pick['age'] = age
-                pick['birth_date'] = birth_date
 
         # Calculate death age and points
         death_dt = datetime.strptime(death_date, '%Y-%m-%d')
@@ -350,7 +352,6 @@ def mark_death(pick_id):
             birth_dt = datetime.strptime(str(pick['birth_date']), '%Y-%m-%d')
             death_age = death_dt.year - birth_dt.year - ((death_dt.month, death_dt.day) < (birth_dt.month, birth_dt.day))
         else:
-            # If we don't have exact birth date, use current age as estimate
             death_age = pick['age'] if pick['age'] else 0
 
         points = max(0, 100 - death_age)
@@ -359,86 +360,126 @@ def mark_death(pick_id):
         cursor.execute("""
             SELECT COUNT(*) as death_count
             FROM picks
-            WHERE season_year = 2025 AND death_date IS NOT NULL
-        """)
+            WHERE season_year = ? AND death_date IS NOT NULL
+        """, (pick['season_year'],))
         result = cursor.fetchone()
         is_first_blood = (result['death_count'] == 0)
 
-        # Update the pick
         cursor.execute("""
             UPDATE picks
             SET death_date = ?, death_age = ?, points = ?, is_first_blood = ?
             WHERE id = ?
         """, (death_date, death_age, points, is_first_blood, pick_id))
 
-        # If first blood, update season config
         if is_first_blood:
             cursor.execute("""
                 UPDATE season_config
                 SET first_blood_winner_id = ?
-                WHERE season_year = 2025
-            """, (pick['participant_id'],))
+                WHERE season_year = ?
+            """, (pick['participant_id'], pick['season_year']))
 
         conn.commit()
 
-        return redirect(url_for('index'))
+        return redirect(url_for('index', season=season_year))
 
 @app.route('/unmark_death/<int:pick_id>', methods=['POST'])
 def unmark_death(pick_id):
     """Remove death marking from a pick"""
+    season_year = int(request.form.get('season_year', datetime.now().year))
+
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
-        # Check if this was first blood
-        cursor.execute("SELECT is_first_blood FROM picks WHERE id = ?", (pick_id,))
+        cursor.execute("SELECT is_first_blood, season_year FROM picks WHERE id = ?", (pick_id,))
         pick = cursor.fetchone()
 
-        # Clear death information
         cursor.execute("""
             UPDATE picks
-            SET death_date = NULL, death_age = NULL, points = 0, is_first_blood = FALSE
+            SET death_date = NULL, death_age = NULL, points = 0, is_first_blood = 0
             WHERE id = ?
         """, (pick_id,))
 
-        # If it was first blood, clear the season config
         if pick and pick['is_first_blood']:
             cursor.execute("""
                 UPDATE season_config
                 SET first_blood_winner_id = NULL
-                WHERE season_year = 2025
-            """)
+                WHERE season_year = ?
+            """, (pick['season_year'],))
 
         conn.commit()
 
-        return redirect(url_for('index'))
+        return redirect(url_for('index', season=season_year))
 
 @app.route('/add_pick', methods=['POST'])
 def add_pick():
     """Add a new pick for a participant"""
     participant_id = request.form.get('participant_id')
     celebrity_name = request.form.get('celebrity_name')
+    season_year = int(request.form.get('season_year', datetime.now().year))
 
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
         cursor.execute("""
             INSERT INTO picks (participant_id, celebrity_name, season_year)
-            VALUES (?, ?, 2025)
-        """, (participant_id, celebrity_name))
+            VALUES (?, ?, ?)
+        """, (participant_id, celebrity_name, season_year))
 
         conn.commit()
 
-        return redirect(url_for('index'))
+        return redirect(url_for('index', season=season_year))
 
 @app.route('/delete_pick/<int:pick_id>', methods=['POST'])
 def delete_pick(pick_id):
     """Delete a pick"""
+    season_year = int(request.form.get('season_year', datetime.now().year))
+
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM picks WHERE id = ?", (pick_id,))
         conn.commit()
 
-        return redirect(url_for('index'))
+        return redirect(url_for('index', season=season_year))
+
+@app.route('/import_from_last_year', methods=['POST'])
+def import_from_last_year():
+    """Import living picks from the previous season for a participant"""
+    participant_id = int(request.form.get('participant_id'))
+    season_year = int(request.form.get('season_year', datetime.now().year))
+    last_year = season_year - 1
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+
+        # Get all living picks from last season for this participant
+        cursor.execute("""
+            SELECT celebrity_name, age, birth_date, wikipedia_url, description
+            FROM picks
+            WHERE participant_id = ? AND season_year = ? AND death_date IS NULL
+        """, (participant_id, last_year))
+        living_picks = cursor.fetchall()
+
+        # Get names already picked this season to avoid duplicates
+        cursor.execute("""
+            SELECT celebrity_name FROM picks
+            WHERE participant_id = ? AND season_year = ?
+        """, (participant_id, season_year))
+        existing = {row['celebrity_name'] for row in cursor.fetchall()}
+
+        imported = 0
+        for pick in living_picks:
+            if pick['celebrity_name'] not in existing:
+                cursor.execute("""
+                    INSERT INTO picks (participant_id, celebrity_name, season_year, age, birth_date, wikipedia_url, description)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (participant_id, pick['celebrity_name'], season_year,
+                      pick['age'], pick['birth_date'], pick['wikipedia_url'], pick['description']))
+                imported += 1
+
+        conn.commit()
+        print(f"Imported {imported} picks from {last_year} for participant {participant_id}")
+
+        return redirect(url_for('index', season=season_year))
 
 @app.route('/update_date/<int:pick_id>', methods=['POST'])
 def update_date(pick_id):
@@ -457,15 +498,13 @@ def update_date(pick_id):
         cursor = conn.cursor()
 
         if date_type == 'birth':
-            # Update birth date and recalculate age
             cursor.execute("SELECT * FROM picks WHERE id = ?", (pick_id,))
             pick = cursor.fetchone()
 
             birth_dt = datetime.strptime(new_date, '%Y-%m-%d')
 
             if pick['death_date']:
-                # Recalculate death age
-                death_dt = pick['death_date']
+                death_dt = datetime.strptime(str(pick['death_date']), '%Y-%m-%d')
                 death_age = death_dt.year - birth_dt.year - ((death_dt.month, death_dt.day) < (birth_dt.month, birth_dt.day))
                 age = death_age
                 points = max(0, 100 - death_age)
@@ -476,7 +515,6 @@ def update_date(pick_id):
                     WHERE id = ?
                 """, (new_date, age, death_age, points, pick_id))
             else:
-                # Just update birth date and current age
                 today = datetime.now()
                 age = today.year - birth_dt.year - ((today.month, today.day) < (birth_dt.month, birth_dt.day))
 
@@ -487,7 +525,6 @@ def update_date(pick_id):
                 """, (new_date, age, pick_id))
 
         elif date_type == 'death':
-            # Update death date and recalculate death age and points
             cursor.execute("SELECT * FROM picks WHERE id = ?", (pick_id,))
             pick = cursor.fetchone()
 
@@ -495,7 +532,7 @@ def update_date(pick_id):
                 return jsonify({'success': False, 'error': 'Cannot set death date without birth date'}), 400
 
             death_dt = datetime.strptime(new_date, '%Y-%m-%d')
-            birth_dt = pick['birth_date']
+            birth_dt = datetime.strptime(str(pick['birth_date']), '%Y-%m-%d')
             death_age = death_dt.year - birth_dt.year - ((death_dt.month, death_dt.day) < (birth_dt.month, birth_dt.day))
             points = max(0, 100 - death_age)
 

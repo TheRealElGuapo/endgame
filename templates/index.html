@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Deathpool 2025</title>
+    <title>Deathpool {{ season_year }}</title>
     <style>
         * {
             margin: 0;
@@ -524,10 +524,19 @@
 <body>
     <div class="container">
         <header>
-            <h1>💀 DEATHPOOL 2025 💀</h1>
+            <h1>💀 DEATHPOOL {{ season_year }} 💀</h1>
             <div class="season-info">Season ends: {{ season_end }}</div>
             <div class="countdown">
                 ⏰ {{ days_remaining }} days, {{ hours_remaining }} hours remaining
+            </div>
+            <div style="margin-top: 15px;">
+                <label for="season-select" style="color: #aaa; font-size: 0.9em;">Season: </label>
+                <select id="season-select" onchange="window.location.href='/?season='+this.value"
+                        style="background: #333; color: #e0e0e0; border: 1px solid #555; padding: 4px 10px; border-radius: 4px; font-size: 0.9em; cursor: pointer;">
+                    {% for yr in available_seasons %}
+                    <option value="{{ yr }}" {% if yr == season_year %}selected{% endif %}>{{ yr }}</option>
+                    {% endfor %}
+                </select>
             </div>
         </header>
 
@@ -597,9 +606,30 @@
             </div>
 
             {% for participant, picks in picks_by_participant.items() %}
+            {% set participant_obj = participants|selectattr('name', 'equalto', participant)|first %}
             <div class="participant-picks" id="participant-{{ participant|lower }}">
                 <div class="participant-header">
                     <span>{{ participant }}'s Picks ({{ picks|length }})</span>
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <!-- Add Pick Form -->
+                        <form action="/add_pick" method="POST" style="display: flex; gap: 4px;">
+                            <input type="hidden" name="participant_id" value="{{ participant_obj.id }}">
+                            <input type="hidden" name="season_year" value="{{ season_year }}">
+                            <input type="text" name="celebrity_name" placeholder="Add celebrity..." required
+                                   style="background: #333; color: #e0e0e0; border: 1px solid #555; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; width: 160px;">
+                            <button type="submit" class="btn btn-submit" title="Add pick">+</button>
+                        </form>
+                        <!-- Import from last year -->
+                        <form action="/import_from_last_year" method="POST">
+                            <input type="hidden" name="participant_id" value="{{ participant_obj.id }}">
+                            <input type="hidden" name="season_year" value="{{ season_year }}">
+                            <button type="submit" class="btn" title="Import living picks from {{ season_year - 1 }}"
+                                    style="background: #2a5298; font-size: 0.8em; padding: 4px 8px;"
+                                    onclick="return confirm('Import all living picks from {{ season_year - 1 }} for {{ participant }}?')">
+                                ↩ Import from {{ season_year - 1 }}
+                            </button>
+                        </form>
+                    </div>
                 </div>
                 <div class="picks-list">
                     {% for pick in picks %}
@@ -656,7 +686,7 @@
                             <span class="date-editable {% if is_invalid %}date-invalid{% endif %}"
                                   onclick="editDate({{ pick.id }}, 'death')"
                                   id="death-display-{{ pick.id }}"
-                                  {% if is_invalid %}title="Death date is before season start (Jan 1, 2025) - likely incorrect"{% endif %}>
+                                  {% if is_invalid %}title="Death date is before season start (Jan 1, {{ season_year }}) - likely incorrect"{% endif %}>
                                 {{ pick.death_date }}
                             </span>
                             <div class="date-edit-form" id="death-edit-{{ pick.id }}">
@@ -688,6 +718,7 @@
                             </button>
                             <div id="death-form-{{ pick.id }}" class="death-form">
                                 <form action="/mark_death/{{ pick.id }}" method="POST">
+                                    <input type="hidden" name="season_year" value="{{ season_year }}">
                                     <input type="date" name="death_date" required>
                                     <button type="submit" class="btn btn-submit">✓</button>
                                     <button type="button" class="btn btn-cancel" onclick="toggleDeathForm({{ pick.id }})">✗</button>
@@ -695,9 +726,17 @@
                             </div>
                             {% else %}
                             <form action="/unmark_death/{{ pick.id }}" method="POST" style="display: inline;">
-                                <button type="submit" class="btn btn-unmark">↶</button>
+                                <input type="hidden" name="season_year" value="{{ season_year }}">
+                                <button type="submit" class="btn btn-unmark" title="Unmark death">↶</button>
                             </form>
                             {% endif %}
+
+                            <form action="/delete_pick/{{ pick.id }}" method="POST" style="display: inline;"
+                                  onsubmit="return confirm('Delete {{ pick.celebrity_name }}?')">
+                                <input type="hidden" name="season_year" value="{{ season_year }}">
+                                <button type="submit" class="btn" title="Delete pick"
+                                        style="background: #5a1a1a; color: #ff6b6b; font-size: 0.8em; padding: 3px 7px;">✕</button>
+                            </form>
                         </div>
                     </div>
                     {% endfor %}
