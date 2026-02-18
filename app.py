@@ -258,7 +258,7 @@ def lookup_age(pick_id):
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("SELECT celebrity_name, participant_id FROM picks WHERE id = %s", (pick_id,))
+        cursor.execute("SELECT celebrity_name, participant_id FROM picks WHERE id = ?", (pick_id,))
         pick = cursor.fetchone()
 
         if not pick:
@@ -280,24 +280,24 @@ def lookup_age(pick_id):
 
                 cursor.execute("""
                     UPDATE picks
-                    SET age = %s, birth_date = %s, death_date = %s, death_age = %s,
-                        points = %s, is_first_blood = %s, wikipedia_url = %s, description = %s
-                    WHERE id = %s
+                    SET age = ?, birth_date = ?, death_date = ?, death_age = ?,
+                        points = ?, is_first_blood = ?, wikipedia_url = ?, description = ?
+                    WHERE id = ?
                 """, (result['age'], result['birth_date'], result['death_date'],
                       result['death_age'], points, is_first_blood, result['wiki_url'], result['description'], pick_id))
 
                 if is_first_blood:
                     cursor.execute("""
                         UPDATE season_config
-                        SET first_blood_winner_id = %s
+                        SET first_blood_winner_id = ?
                         WHERE season_year = 2025
                     """, (pick['participant_id'],))
             else:
                 # Celebrity is alive
                 cursor.execute("""
                     UPDATE picks
-                    SET age = %s, birth_date = %s, wikipedia_url = %s, description = %s
-                    WHERE id = %s
+                    SET age = ?, birth_date = ?, wikipedia_url = ?, description = ?
+                    WHERE id = ?
                 """, (result['age'], result['birth_date'], result['wiki_url'], result['description'], pick_id))
 
             conn.commit()
@@ -324,7 +324,7 @@ def mark_death(pick_id):
         cursor = conn.cursor()
 
         # Get pick details
-        cursor.execute("SELECT * FROM picks WHERE id = %s", (pick_id,))
+        cursor.execute("SELECT * FROM picks WHERE id = ?", (pick_id,))
         pick = cursor.fetchone()
 
         if not pick:
@@ -336,8 +336,8 @@ def mark_death(pick_id):
             if age is not None:
                 cursor.execute("""
                     UPDATE picks
-                    SET age = %s, birth_date = %s
-                    WHERE id = %s
+                    SET age = ?, birth_date = ?
+                    WHERE id = ?
                 """, (age, birth_date, pick_id))
                 conn.commit()
                 pick['age'] = age
@@ -367,15 +367,15 @@ def mark_death(pick_id):
         # Update the pick
         cursor.execute("""
             UPDATE picks
-            SET death_date = %s, death_age = %s, points = %s, is_first_blood = %s
-            WHERE id = %s
+            SET death_date = ?, death_age = ?, points = ?, is_first_blood = ?
+            WHERE id = ?
         """, (death_date, death_age, points, is_first_blood, pick_id))
 
         # If first blood, update season config
         if is_first_blood:
             cursor.execute("""
                 UPDATE season_config
-                SET first_blood_winner_id = %s
+                SET first_blood_winner_id = ?
                 WHERE season_year = 2025
             """, (pick['participant_id'],))
 
@@ -390,14 +390,14 @@ def unmark_death(pick_id):
         cursor = conn.cursor()
 
         # Check if this was first blood
-        cursor.execute("SELECT is_first_blood FROM picks WHERE id = %s", (pick_id,))
+        cursor.execute("SELECT is_first_blood FROM picks WHERE id = ?", (pick_id,))
         pick = cursor.fetchone()
 
         # Clear death information
         cursor.execute("""
             UPDATE picks
             SET death_date = NULL, death_age = NULL, points = 0, is_first_blood = FALSE
-            WHERE id = %s
+            WHERE id = ?
         """, (pick_id,))
 
         # If it was first blood, clear the season config
@@ -423,7 +423,7 @@ def add_pick():
 
         cursor.execute("""
             INSERT INTO picks (participant_id, celebrity_name, season_year)
-            VALUES (%s, %s, 2025)
+            VALUES (?, ?, 2025)
         """, (participant_id, celebrity_name))
 
         conn.commit()
@@ -435,7 +435,7 @@ def delete_pick(pick_id):
     """Delete a pick"""
     with get_db_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM picks WHERE id = %s", (pick_id,))
+        cursor.execute("DELETE FROM picks WHERE id = ?", (pick_id,))
         conn.commit()
 
         return redirect(url_for('index'))
@@ -458,7 +458,7 @@ def update_date(pick_id):
 
         if date_type == 'birth':
             # Update birth date and recalculate age
-            cursor.execute("SELECT * FROM picks WHERE id = %s", (pick_id,))
+            cursor.execute("SELECT * FROM picks WHERE id = ?", (pick_id,))
             pick = cursor.fetchone()
 
             birth_dt = datetime.strptime(new_date, '%Y-%m-%d')
@@ -472,8 +472,8 @@ def update_date(pick_id):
 
                 cursor.execute("""
                     UPDATE picks
-                    SET birth_date = %s, age = %s, death_age = %s, points = %s
-                    WHERE id = %s
+                    SET birth_date = ?, age = ?, death_age = ?, points = ?
+                    WHERE id = ?
                 """, (new_date, age, death_age, points, pick_id))
             else:
                 # Just update birth date and current age
@@ -482,13 +482,13 @@ def update_date(pick_id):
 
                 cursor.execute("""
                     UPDATE picks
-                    SET birth_date = %s, age = %s
-                    WHERE id = %s
+                    SET birth_date = ?, age = ?
+                    WHERE id = ?
                 """, (new_date, age, pick_id))
 
         elif date_type == 'death':
             # Update death date and recalculate death age and points
-            cursor.execute("SELECT * FROM picks WHERE id = %s", (pick_id,))
+            cursor.execute("SELECT * FROM picks WHERE id = ?", (pick_id,))
             pick = cursor.fetchone()
 
             if not pick['birth_date']:
@@ -501,8 +501,8 @@ def update_date(pick_id):
 
             cursor.execute("""
                 UPDATE picks
-                SET death_date = %s, death_age = %s, points = %s
-                WHERE id = %s
+                SET death_date = ?, death_age = ?, points = ?
+                WHERE id = ?
             """, (new_date, death_age, points, pick_id))
 
         conn.commit()
