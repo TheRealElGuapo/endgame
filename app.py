@@ -283,7 +283,8 @@ def index():
                              season_year=season_year,
                              available_seasons=available_seasons,
                              participants=participants,
-                             stats_by_participant=stats_by_participant)
+                             stats_by_participant=stats_by_participant,
+                             picks_locked=bool(season.get('picks_locked', 0)))
 
 @app.route('/lookup_age/<int:pick_id>')
 def lookup_age(pick_id):

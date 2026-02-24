@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS season_config (
     season_year INTEGER NOT NULL UNIQUE,
     end_date DATETIME NOT NULL,
     first_blood_winner_id INTEGER DEFAULT NULL,
+    picks_locked INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (first_blood_winner_id) REFERENCES participants(id) ON DELETE SET NULL
 );

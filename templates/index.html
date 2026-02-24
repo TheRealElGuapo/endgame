@@ -786,6 +786,7 @@
             <div class="participant-picks" id="participant-{{ participant|lower }}">
                 <div class="participant-header">
                     <span>{{ participant }}'s Picks ({{ picks|length }})</span>
+                    {% if not picks_locked %}
                     <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
                         <!-- Add Pick Form -->
                         <form action="/add_pick" method="POST" style="display: flex; gap: 4px;">
@@ -806,6 +807,7 @@
                             </button>
                         </form>
                     </div>
+                    {% endif %}
                 </div>
                 <div class="picks-list">
                     {% for pick in picks %}
@@ -907,12 +909,14 @@
                             </form>
                             {% endif %}
 
+                            {% if not picks_locked %}
                             <form action="/delete_pick/{{ pick.id }}" method="POST" style="display: inline;"
                                   onsubmit="return confirm('Delete {{ pick.celebrity_name }}?')">
                                 <input type="hidden" name="season_year" value="{{ season_year }}">
                                 <button type="submit" class="btn" title="Delete pick"
                                         style="background: #5a1a1a; color: #ff6b6b; font-size: 0.8em; padding: 3px 7px;">✕</button>
                             </form>
+                            {% endif %}
                         </div>
                     </div>
                     {% endfor %}
