@@ -1,4 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 from datetime import datetime
 import requests
@@ -7,6 +9,27 @@ from contextlib import contextmanager
 import os
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'deathpool-dev-key-change-in-production')
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+class User(UserMixin):
+    def __init__(self, id, name, username):
+        self.id = id
+        self.name = name
+        self.username = username
+
+@login_manager.user_loader
+def load_user(user_id):
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, name, username FROM participants WHERE id = ?", (int(user_id),))
+        row = cursor.fetchone()
+        if row:
+            return User(row['id'], row['name'], row['username'])
+        return None
 
 # Database configuration
 DB_PATH = os.environ.get('DB_PATH', 'deathpool.db')
@@ -161,6 +184,31 @@ def get_wikipedia_age(celebrity_name):
         traceback.print_exc()
         return None
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    error = None
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM participants WHERE username = ?", (username,))
+            row = cursor.fetchone()
+        if row and row.get('password_hash') and check_password_hash(row['password_hash'], password):
+            user = User(row['id'], row['name'], row['username'])
+            login_user(user, remember=True)
+            return redirect(request.args.get('next') or url_for('index'))
+        error = 'Invalid username or password'
+    return render_template('login.html', error=error)
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('index'))
+
 @app.route('/')
 def index():
     """Main dashboard showing leaderboard and all picks"""
@@ -243,10 +291,16 @@ def index():
             }
 
         # Group picks by participant and mark first blood
+        # For unlocked seasons, only show each user their own picks (draft privacy)
+        picks_locked = bool(season.get('picks_locked', 0))
         picks_by_participant = {}
         for pick in all_picks:
             pick['is_first_blood'] = (pick['id'] in first_blood_pick_ids)
             participant = pick['participant_name']
+            if not picks_locked:
+                # Draft mode: only show your own picks
+                if not current_user.is_authenticated or pick['participant_id'] != current_user.id:
+                    continue
             if participant not in picks_by_participant:
                 picks_by_participant[participant] = []
             picks_by_participant[participant].append(pick)
@@ -284,9 +338,10 @@ def index():
                              available_seasons=available_seasons,
                              participants=participants,
                              stats_by_participant=stats_by_participant,
-                             picks_locked=bool(season.get('picks_locked', 0)))
+                             picks_locked=picks_locked)
 
 @app.route('/lookup_age/<int:pick_id>')
+@login_required
 def lookup_age(pick_id):
     """Look up age for a specific pick"""
     with get_db_connection() as conn:
@@ -297,6 +352,9 @@ def lookup_age(pick_id):
 
         if not pick:
             return jsonify({'error': 'Pick not found'}), 404
+
+        if pick['participant_id'] != current_user.id:
+            return jsonify({'error': 'Not your pick'}), 403
 
         result = get_wikipedia_age(pick['celebrity_name'])
 
@@ -348,6 +406,7 @@ def lookup_age(pick_id):
             })
 
 @app.route('/mark_death/<int:pick_id>', methods=['POST'])
+@login_required
 def mark_death(pick_id):
     """Mark a celebrity as deceased and calculate points"""
     death_date = request.form.get('death_date')
@@ -361,6 +420,9 @@ def mark_death(pick_id):
 
         if not pick:
             return jsonify({'error': 'Pick not found'}), 404
+
+        if pick['participant_id'] != current_user.id:
+            return redirect(url_for('index', season=season_year))
 
         # Calculate death age and points
         death_dt = datetime.strptime(death_date, '%Y-%m-%d')
@@ -400,6 +462,7 @@ def mark_death(pick_id):
         return redirect(url_for('index', season=season_year))
 
 @app.route('/unmark_death/<int:pick_id>', methods=['POST'])
+@login_required
 def unmark_death(pick_id):
     """Remove death marking from a pick"""
     season_year = int(request.form.get('season_year', datetime.now().year))
@@ -407,8 +470,11 @@ def unmark_death(pick_id):
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
-        cursor.execute("SELECT is_first_blood, season_year FROM picks WHERE id = ?", (pick_id,))
+        cursor.execute("SELECT is_first_blood, season_year, participant_id FROM picks WHERE id = ?", (pick_id,))
         pick = cursor.fetchone()
+
+        if pick and pick['participant_id'] != current_user.id:
+            return redirect(url_for('index', season=season_year))
 
         cursor.execute("""
             UPDATE picks
@@ -428,11 +494,15 @@ def unmark_death(pick_id):
         return redirect(url_for('index', season=season_year))
 
 @app.route('/add_pick', methods=['POST'])
+@login_required
 def add_pick():
     """Add a new pick for a participant"""
-    participant_id = request.form.get('participant_id')
+    participant_id = int(request.form.get('participant_id'))
     celebrity_name = request.form.get('celebrity_name')
     season_year = int(request.form.get('season_year', datetime.now().year))
+
+    if participant_id != current_user.id:
+        return redirect(url_for('index', season=season_year))
 
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -447,22 +517,31 @@ def add_pick():
         return redirect(url_for('index', season=season_year))
 
 @app.route('/delete_pick/<int:pick_id>', methods=['POST'])
+@login_required
 def delete_pick(pick_id):
     """Delete a pick"""
     season_year = int(request.form.get('season_year', datetime.now().year))
 
     with get_db_connection() as conn:
         cursor = conn.cursor()
+        cursor.execute("SELECT participant_id FROM picks WHERE id = ?", (pick_id,))
+        pick = cursor.fetchone()
+        if not pick or pick['participant_id'] != current_user.id:
+            return redirect(url_for('index', season=season_year))
         cursor.execute("DELETE FROM picks WHERE id = ?", (pick_id,))
         conn.commit()
 
         return redirect(url_for('index', season=season_year))
 
 @app.route('/import_from_last_year', methods=['POST'])
+@login_required
 def import_from_last_year():
     """Import living picks from the previous season for a participant"""
     participant_id = int(request.form.get('participant_id'))
     season_year = int(request.form.get('season_year', datetime.now().year))
+
+    if participant_id != current_user.id:
+        return redirect(url_for('index', season=season_year))
     last_year = season_year - 1
 
     with get_db_connection() as conn:
@@ -499,6 +578,7 @@ def import_from_last_year():
         return redirect(url_for('index', season=season_year))
 
 @app.route('/update_date/<int:pick_id>', methods=['POST'])
+@login_required
 def update_date(pick_id):
     """Update birth or death date for a pick"""
     data = request.get_json()
@@ -517,6 +597,9 @@ def update_date(pick_id):
         if date_type == 'birth':
             cursor.execute("SELECT * FROM picks WHERE id = ?", (pick_id,))
             pick = cursor.fetchone()
+
+            if not pick or pick['participant_id'] != current_user.id:
+                return jsonify({'success': False, 'error': 'Not your pick'}), 403
 
             birth_dt = datetime.strptime(new_date, '%Y-%m-%d')
 
@@ -544,6 +627,9 @@ def update_date(pick_id):
         elif date_type == 'death':
             cursor.execute("SELECT * FROM picks WHERE id = ?", (pick_id,))
             pick = cursor.fetchone()
+
+            if not pick or pick['participant_id'] != current_user.id:
+                return jsonify({'success': False, 'error': 'Not your pick'}), 403
 
             if not pick['birth_date']:
                 return jsonify({'success': False, 'error': 'Cannot set death date without birth date'}), 400

@@ -659,14 +659,25 @@
             <div class="countdown">
                 ⏰ {{ days_remaining }} days, {{ hours_remaining }} hours remaining
             </div>
-            <div style="margin-top: 15px;">
-                <label for="season-select" style="color: #aaa; font-size: 0.9em;">Season: </label>
-                <select id="season-select" onchange="window.location.href='/?season='+this.value"
-                        style="background: #333; color: #e0e0e0; border: 1px solid #555; padding: 4px 10px; border-radius: 4px; font-size: 0.9em; cursor: pointer;">
-                    {% for yr in available_seasons %}
-                    <option value="{{ yr }}" {% if yr == season_year %}selected{% endif %}>{{ yr }}</option>
-                    {% endfor %}
-                </select>
+            <div style="margin-top: 15px; display: flex; justify-content: center; align-items: center; gap: 20px; flex-wrap: wrap;">
+                <div>
+                    <label for="season-select" style="color: #aaa; font-size: 0.9em;">Season: </label>
+                    <select id="season-select" onchange="window.location.href='/?season='+this.value"
+                            style="background: #333; color: #e0e0e0; border: 1px solid #555; padding: 4px 10px; border-radius: 4px; font-size: 0.9em; cursor: pointer;">
+                        {% for yr in available_seasons %}
+                        <option value="{{ yr }}" {% if yr == season_year %}selected{% endif %}>{{ yr }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    {% if current_user.is_authenticated %}
+                    <span style="color: #aaa; font-size: 0.85em;">Playing as <strong style="color: #ff6b6b;">{{ current_user.name }}</strong></span>
+                    <a href="/logout" style="margin-left: 10px; color: #666; font-size: 0.8em; border: 1px solid #444; padding: 3px 10px; border-radius: 4px; text-decoration: none; transition: all 0.2s;"
+                       onmouseover="this.style.color='#aaa'" onmouseout="this.style.color='#666'">Log out</a>
+                    {% else %}
+                    <a href="/login" style="color: #ff6b6b; font-size: 0.85em; border: 1px solid #8b0000; padding: 4px 12px; border-radius: 4px; text-decoration: none;">Log in</a>
+                    {% endif %}
+                </div>
             </div>
         </header>
 
@@ -834,7 +845,9 @@
                         <!-- Birth Date Column -->
                         <div class="date-cell">
                             {% if pick.birth_date %}
-                            <span class="date-editable" onclick="editDate({{ pick.id }}, 'birth')" id="birth-display-{{ pick.id }}">
+                            <span class="{% if current_user.is_authenticated and current_user.id == pick.participant_id %}date-editable{% endif %}"
+                                  {% if current_user.is_authenticated and current_user.id == pick.participant_id %}onclick="editDate({{ pick.id }}, 'birth')"{% endif %}
+                                  id="birth-display-{{ pick.id }}">
                                 {{ pick.birth_date }}
                             </span>
                             {% if pick.wikipedia_url %}
@@ -884,6 +897,7 @@
 
                         <!-- Actions Column -->
                         <div class="actions-cell">
+                            {% if current_user.is_authenticated and current_user.id == pick.participant_id %}
                             {% if not pick.age %}
                             <button class="btn btn-lookup" onclick="lookupAge({{ pick.id }}, this)">
                                 🔍
@@ -916,6 +930,7 @@
                                 <button type="submit" class="btn" title="Delete pick"
                                         style="background: #5a1a1a; color: #ff6b6b; font-size: 0.8em; padding: 3px 7px;">✕</button>
                             </form>
+                            {% endif %}
                             {% endif %}
                         </div>
                     </div>

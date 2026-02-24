@@ -4,6 +4,8 @@
 CREATE TABLE IF NOT EXISTS participants (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
+    username TEXT UNIQUE,
+    password_hash TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
