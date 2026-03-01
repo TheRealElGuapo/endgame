@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-import sqlite3
+import mysql.connector
 from datetime import datetime
 import requests
 import re
@@ -24,28 +24,25 @@ class User(UserMixin):
 @login_manager.user_loader
 def load_user(user_id):
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, name, username FROM participants WHERE id = ?", (int(user_id),))
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT id, name, username FROM participants WHERE id = %s", (int(user_id),))
         row = cursor.fetchone()
         if row:
             return User(row['id'], row['name'], row['username'])
         return None
 
 # Database configuration
-DB_PATH = os.environ.get('DB_PATH', 'deathpool.db')
-
-def dict_factory(cursor, row):
-    """Convert database rows to dictionaries"""
-    d = {}
-    for idx, col in enumerate(cursor.description):
-        d[col[0]] = row[idx]
-    return d
+DB_CONFIG = {
+    'host':     os.environ.get('DB_HOST', 'localhost'),
+    'user':     os.environ.get('DB_USER', 'root'),
+    'password': os.environ.get('DB_PASSWORD', ''),
+    'database': os.environ.get('DB_NAME', 'deathpool'),
+}
 
 @contextmanager
 def get_db_connection():
     """Context manager for database connections"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = dict_factory
+    conn = mysql.connector.connect(**DB_CONFIG)
     try:
         yield conn
     finally:
@@ -193,8 +190,8 @@ def login():
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM participants WHERE username = ?", (username,))
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM participants WHERE username = %s", (username,))
             row = cursor.fetchone()
         if row and row.get('password_hash') and check_password_hash(row['password_hash'], password):
             user = User(row['id'], row['name'], row['username'])
@@ -215,7 +212,7 @@ def index():
     season_year = int(request.args.get('season', datetime.now().year))
 
     with get_db_connection() as conn:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         # Get all available seasons
         cursor.execute("SELECT season_year FROM season_config ORDER BY season_year DESC")
@@ -225,17 +222,17 @@ def index():
         if season_year not in available_seasons:
             cursor.execute("""
                 INSERT INTO season_config (season_year, end_date)
-                VALUES (?, ?)
+                VALUES (%s, %s)
             """, (season_year, f'{season_year}-12-31 23:59:59'))
             conn.commit()
             available_seasons.insert(0, season_year)
 
         # Get current season config
-        cursor.execute("SELECT * FROM season_config WHERE season_year = ?", (season_year,))
+        cursor.execute("SELECT * FROM season_config WHERE season_year = %s", (season_year,))
         season = cursor.fetchone()
 
         # Calculate time remaining
-        end_date = datetime.strptime(season['end_date'], '%Y-%m-%d %H:%M:%S')
+        end_date = season['end_date'] if isinstance(season['end_date'], datetime) else datetime.strptime(str(season['end_date']).strip(), '%Y-%m-%d %H:%M:%S')
         time_remaining = end_date - datetime.now()
         days_remaining = max(0, time_remaining.days)
         hours_remaining = max(0, time_remaining.seconds // 3600) if days_remaining >= 0 else 0
@@ -248,7 +245,7 @@ def index():
                 COALESCE(SUM(pk.points), 0) as total_points,
                 COUNT(CASE WHEN pk.death_date IS NOT NULL THEN 1 END) as deaths_count
             FROM participants p
-            LEFT JOIN picks pk ON p.id = pk.participant_id AND pk.season_year = ?
+            LEFT JOIN picks pk ON p.id = pk.participant_id AND pk.season_year = %s
             GROUP BY p.id, p.name
             ORDER BY total_points DESC, deaths_count DESC
         """, (season_year,))
@@ -262,9 +259,9 @@ def index():
             WHERE pk.death_date = (
                 SELECT MIN(death_date)
                 FROM picks
-                WHERE death_date IS NOT NULL AND season_year = ?
+                WHERE death_date IS NOT NULL AND season_year = %s
             )
-            AND pk.season_year = ?
+            AND pk.season_year = %s
             ORDER BY p.name
         """, (season_year, season_year))
         first_blood_picks = cursor.fetchall()
@@ -276,7 +273,7 @@ def index():
                 p.name as participant_name
             FROM picks pk
             JOIN participants p ON pk.participant_id = p.id
-            WHERE pk.season_year = ?
+            WHERE pk.season_year = %s
             ORDER BY p.name, pk.celebrity_name
         """, (season_year,))
         all_picks = cursor.fetchall()
@@ -309,7 +306,7 @@ def index():
         cursor.execute("SELECT id, name FROM participants ORDER BY name")
         participants = cursor.fetchall()
 
-        season_start = f'{season_year}-01-01'
+        season_start = datetime(season_year, 1, 1).date()
 
         # Compute fun stats per participant
         stats_by_participant = {}
@@ -345,9 +342,9 @@ def index():
 def lookup_age(pick_id):
     """Look up age for a specific pick"""
     with get_db_connection() as conn:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
-        cursor.execute("SELECT celebrity_name, participant_id, season_year FROM picks WHERE id = ?", (pick_id,))
+        cursor.execute("SELECT celebrity_name, participant_id, season_year FROM picks WHERE id = %s", (pick_id,))
         pick = cursor.fetchone()
 
         if not pick:
@@ -365,29 +362,29 @@ def lookup_age(pick_id):
                 cursor.execute("""
                     SELECT COUNT(*) as death_count
                     FROM picks
-                    WHERE season_year = ? AND death_date IS NOT NULL
+                    WHERE season_year = %s AND death_date IS NOT NULL
                 """, (pick['season_year'],))
                 is_first_blood = (cursor.fetchone()['death_count'] == 0)
 
                 cursor.execute("""
                     UPDATE picks
-                    SET age = ?, birth_date = ?, death_date = ?, death_age = ?,
+                    SET age = %s, birth_date = %s, death_date = %s, death_age = %s,
                         points = ?, is_first_blood = ?, wikipedia_url = ?, description = ?
-                    WHERE id = ?
+                    WHERE id = %s
                 """, (result['age'], result['birth_date'], result['death_date'],
                       result['death_age'], points, is_first_blood, result['wiki_url'], result['description'], pick_id))
 
                 if is_first_blood:
                     cursor.execute("""
                         UPDATE season_config
-                        SET first_blood_winner_id = ?
-                        WHERE season_year = ?
+                        SET first_blood_winner_id = %s
+                        WHERE season_year = %s
                     """, (pick['participant_id'], pick['season_year']))
             else:
                 cursor.execute("""
                     UPDATE picks
-                    SET age = ?, birth_date = ?, wikipedia_url = ?, description = ?
-                    WHERE id = ?
+                    SET age = %s, birth_date = %s, wikipedia_url = %s, description = %s
+                    WHERE id = %s
                 """, (result['age'], result['birth_date'], result['wiki_url'], result['description'], pick_id))
 
             conn.commit()
@@ -413,9 +410,9 @@ def mark_death(pick_id):
     season_year = int(request.form.get('season_year', datetime.now().year))
 
     with get_db_connection() as conn:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
-        cursor.execute("SELECT * FROM picks WHERE id = ?", (pick_id,))
+        cursor.execute("SELECT * FROM picks WHERE id = %s", (pick_id,))
         pick = cursor.fetchone()
 
         if not pick:
@@ -439,22 +436,22 @@ def mark_death(pick_id):
         cursor.execute("""
             SELECT COUNT(*) as death_count
             FROM picks
-            WHERE season_year = ? AND death_date IS NOT NULL
+            WHERE season_year = %s AND death_date IS NOT NULL
         """, (pick['season_year'],))
         result = cursor.fetchone()
         is_first_blood = (result['death_count'] == 0)
 
         cursor.execute("""
             UPDATE picks
-            SET death_date = ?, death_age = ?, points = ?, is_first_blood = ?
-            WHERE id = ?
+            SET death_date = %s, death_age = %s, points = %s, is_first_blood = %s
+            WHERE id = %s
         """, (death_date, death_age, points, is_first_blood, pick_id))
 
         if is_first_blood:
             cursor.execute("""
                 UPDATE season_config
-                SET first_blood_winner_id = ?
-                WHERE season_year = ?
+                SET first_blood_winner_id = %s
+                WHERE season_year = %s
             """, (pick['participant_id'], pick['season_year']))
 
         conn.commit()
@@ -468,9 +465,9 @@ def unmark_death(pick_id):
     season_year = int(request.form.get('season_year', datetime.now().year))
 
     with get_db_connection() as conn:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
-        cursor.execute("SELECT is_first_blood, season_year, participant_id FROM picks WHERE id = ?", (pick_id,))
+        cursor.execute("SELECT is_first_blood, season_year, participant_id FROM picks WHERE id = %s", (pick_id,))
         pick = cursor.fetchone()
 
         if pick and pick['participant_id'] != current_user.id:
@@ -479,14 +476,14 @@ def unmark_death(pick_id):
         cursor.execute("""
             UPDATE picks
             SET death_date = NULL, death_age = NULL, points = 0, is_first_blood = 0
-            WHERE id = ?
+            WHERE id = %s
         """, (pick_id,))
 
         if pick and pick['is_first_blood']:
             cursor.execute("""
                 UPDATE season_config
                 SET first_blood_winner_id = NULL
-                WHERE season_year = ?
+                WHERE season_year = %s
             """, (pick['season_year'],))
 
         conn.commit()
@@ -505,11 +502,11 @@ def add_pick():
         return redirect(url_for('index', season=season_year))
 
     with get_db_connection() as conn:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         cursor.execute("""
             INSERT INTO picks (participant_id, celebrity_name, season_year)
-            VALUES (?, ?, ?)
+            VALUES (%s, %s, %s)
         """, (participant_id, celebrity_name, season_year))
 
         conn.commit()
@@ -523,12 +520,12 @@ def delete_pick(pick_id):
     season_year = int(request.form.get('season_year', datetime.now().year))
 
     with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT participant_id FROM picks WHERE id = ?", (pick_id,))
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT participant_id FROM picks WHERE id = %s", (pick_id,))
         pick = cursor.fetchone()
         if not pick or pick['participant_id'] != current_user.id:
             return redirect(url_for('index', season=season_year))
-        cursor.execute("DELETE FROM picks WHERE id = ?", (pick_id,))
+        cursor.execute("DELETE FROM picks WHERE id = %s", (pick_id,))
         conn.commit()
 
         return redirect(url_for('index', season=season_year))
@@ -545,20 +542,20 @@ def import_from_last_year():
     last_year = season_year - 1
 
     with get_db_connection() as conn:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         # Get all living picks from last season for this participant
         cursor.execute("""
             SELECT celebrity_name, age, birth_date, wikipedia_url, description
             FROM picks
-            WHERE participant_id = ? AND season_year = ? AND death_date IS NULL
+            WHERE participant_id = %s AND season_year = %s AND death_date IS NULL
         """, (participant_id, last_year))
         living_picks = cursor.fetchall()
 
         # Get names already picked this season to avoid duplicates
         cursor.execute("""
             SELECT celebrity_name FROM picks
-            WHERE participant_id = ? AND season_year = ?
+            WHERE participant_id = %s AND season_year = %s
         """, (participant_id, season_year))
         existing = {row['celebrity_name'] for row in cursor.fetchall()}
 
@@ -567,7 +564,7 @@ def import_from_last_year():
             if pick['celebrity_name'] not in existing:
                 cursor.execute("""
                     INSERT INTO picks (participant_id, celebrity_name, season_year, age, birth_date, wikipedia_url, description)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """, (participant_id, pick['celebrity_name'], season_year,
                       pick['age'], pick['birth_date'], pick['wikipedia_url'], pick['description']))
                 imported += 1
@@ -592,10 +589,10 @@ def update_date(pick_id):
         return jsonify({'success': False, 'error': 'No date provided'}), 400
 
     with get_db_connection() as conn:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         if date_type == 'birth':
-            cursor.execute("SELECT * FROM picks WHERE id = ?", (pick_id,))
+            cursor.execute("SELECT * FROM picks WHERE id = %s", (pick_id,))
             pick = cursor.fetchone()
 
             if not pick or pick['participant_id'] != current_user.id:
@@ -611,8 +608,8 @@ def update_date(pick_id):
 
                 cursor.execute("""
                     UPDATE picks
-                    SET birth_date = ?, age = ?, death_age = ?, points = ?
-                    WHERE id = ?
+                    SET birth_date = %s, age = %s, death_age = %s, points = %s
+                    WHERE id = %s
                 """, (new_date, age, death_age, points, pick_id))
             else:
                 today = datetime.now()
@@ -620,12 +617,12 @@ def update_date(pick_id):
 
                 cursor.execute("""
                     UPDATE picks
-                    SET birth_date = ?, age = ?
-                    WHERE id = ?
+                    SET birth_date = %s, age = %s
+                    WHERE id = %s
                 """, (new_date, age, pick_id))
 
         elif date_type == 'death':
-            cursor.execute("SELECT * FROM picks WHERE id = ?", (pick_id,))
+            cursor.execute("SELECT * FROM picks WHERE id = %s", (pick_id,))
             pick = cursor.fetchone()
 
             if not pick or pick['participant_id'] != current_user.id:
@@ -641,8 +638,8 @@ def update_date(pick_id):
 
             cursor.execute("""
                 UPDATE picks
-                SET death_date = ?, death_age = ?, points = ?
-                WHERE id = ?
+                SET death_date = %s, death_age = %s, points = %s
+                WHERE id = %s
             """, (new_date, death_age, points, pick_id))
 
         conn.commit()
@@ -650,4 +647,4 @@ def update_date(pick_id):
         return jsonify({'success': True})
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(host='0.0.0.0', debug=True, port=5001)
